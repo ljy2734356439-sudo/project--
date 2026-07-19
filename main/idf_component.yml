@@ -1,0 +1,10 @@
+# main/idf_component.yml
+# ESP-IDF 组件管理器配置：声明本项目需要从组件仓库自动下载的第三方组件。
+# 第一次 build 时，idf.py 会自动联网下载这些组件到 managed_components 目录，
+# 不需要你手动下载或拷贝任何文件。
+
+dependencies:
+  idf: ">=5.0"
+  lvgl/lvgl: "~8.3.11"          # LVGL 图形库本体（用这个稳定版本，v8系列文档和例程最丰富）
+  espressif/esp_lvgl_port: "^1.4"   # 官方提供的"LVGL适配层"，帮你处理LVGL和esp_lcd之间的对接细节
+  espressif/esp_lcd_ili9341: "^2"   # 官方现成的ILI9341驱动，取代我们之前手写的初始化代码
