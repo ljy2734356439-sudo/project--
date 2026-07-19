@@ -1,2 +1,2 @@
-source D:/esp/project/project1.3/build/gdbinit/symbols
-source D:/esp/project/project1.3/build/gdbinit/connect
+source D:/esp/project/project1.3-git/build/gdbinit/symbols
+source D:/esp/project/project1.3-git/build/gdbinit/connect

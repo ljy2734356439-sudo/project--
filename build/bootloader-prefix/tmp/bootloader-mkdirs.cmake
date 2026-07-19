@@ -10,18 +10,18 @@ if(NOT EXISTS "D:/esp/v5.5.4/esp-idf/components/bootloader/subproject")
   file(MAKE_DIRECTORY "D:/esp/v5.5.4/esp-idf/components/bootloader/subproject")
 endif()
 file(MAKE_DIRECTORY
-  "D:/esp/project/project1.3/build/bootloader"
-  "D:/esp/project/project1.3/build/bootloader-prefix"
-  "D:/esp/project/project1.3/build/bootloader-prefix/tmp"
-  "D:/esp/project/project1.3/build/bootloader-prefix/src/bootloader-stamp"
-  "D:/esp/project/project1.3/build/bootloader-prefix/src"
-  "D:/esp/project/project1.3/build/bootloader-prefix/src/bootloader-stamp"
+  "D:/esp/project/project1.3-git/build/bootloader"
+  "D:/esp/project/project1.3-git/build/bootloader-prefix"
+  "D:/esp/project/project1.3-git/build/bootloader-prefix/tmp"
+  "D:/esp/project/project1.3-git/build/bootloader-prefix/src/bootloader-stamp"
+  "D:/esp/project/project1.3-git/build/bootloader-prefix/src"
+  "D:/esp/project/project1.3-git/build/bootloader-prefix/src/bootloader-stamp"
 )
 
 set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
-    file(MAKE_DIRECTORY "D:/esp/project/project1.3/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
+    file(MAKE_DIRECTORY "D:/esp/project/project1.3-git/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
 endforeach()
 if(cfgdir)
-  file(MAKE_DIRECTORY "D:/esp/project/project1.3/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
+  file(MAKE_DIRECTORY "D:/esp/project/project1.3-git/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
 endif()

@@ -10,7 +10,6 @@ idf_component_register(
         "elevator_state_machine.c"
         "subjective_score.c"
         "score_task.c"
-        "button_task.c"
     INCLUDE_DIRS
         "."
     REQUIRES

@@ -1,4 +1,4 @@
-# Install script for directory: D:/esp/project/project1.3/main
+# Install script for directory: D:/esp/project/project1.3-git/main
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

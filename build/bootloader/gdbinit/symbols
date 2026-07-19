@@ -17,4 +17,4 @@ set confirm off
 set confirm on
 
 # Load application symbols
-file D:/esp/project/project1.3/build/bootloader/bootloader.elf
+file D:/esp/project/project1.3-git/build/bootloader/bootloader.elf

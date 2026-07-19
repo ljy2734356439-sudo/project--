@@ -13,8 +13,8 @@ end
 
 # Load bootloader symbols
 set confirm off
-    add-symbol-file D:/esp/project/project1.3/build/bootloader/bootloader.elf
+    add-symbol-file D:/esp/project/project1.3-git/build/bootloader/bootloader.elf
 set confirm on
 
 # Load application symbols
-file D:/esp/project/project1.3/build/project1.1.elf
+file D:/esp/project/project1.3-git/build/project1.1.elf

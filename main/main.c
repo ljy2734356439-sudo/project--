@@ -23,7 +23,6 @@
 #include "audio_task.h"
 #include "display_task.h"
 #include "score_task.h"
-#include "button_task.h"
 
 static const char *TAG = "MAIN";
 
@@ -32,17 +31,14 @@ static const char *TAG = "MAIN";
 #define PRIORITY_AUDIO    4
 #define PRIORITY_SCORE    3
 #define PRIORITY_DISPLAY  2
-#define PRIORITY_BUTTON   2
 
 // 任务栈大小（字节）。IMU任务逻辑简单给4KB足够；
 // 音频任务涉及浮点RMS计算给4KB；评分任务涉及指数函数计算给4KB；
-// 显示任务未来接入LVGL后需要加大（先给4KB占位，接LVGL时再调）；
-// 按键任务逻辑非常简单，2KB足够
+// 显示任务未来接入LVGL后需要加大（先给4KB占位，接LVGL时再调）
 #define STACK_SENSOR   4096
 #define STACK_AUDIO    4096
 #define STACK_SCORE    4096
 #define STACK_DISPLAY  4096
-#define STACK_BUTTON   2048
 
 void app_main(void)
 {
@@ -63,10 +59,6 @@ void app_main(void)
 
     xTaskCreatePinnedToCore(display_task, "display_task", STACK_DISPLAY,
                              NULL, PRIORITY_DISPLAY, NULL, 0);
-
-    // 按键任务：纯轮询GPIO，逻辑简单不涉及实时性硬件访问，放Core0即可
-    xTaskCreatePinnedToCore(button_task, "button_task", STACK_BUTTON,
-                             NULL, PRIORITY_BUTTON, NULL, 0);
 
     ESP_LOGI(TAG, "所有任务创建完成");
 

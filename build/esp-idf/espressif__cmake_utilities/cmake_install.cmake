@@ -1,4 +1,4 @@
-# Install script for directory: D:/esp/project/project1.3/managed_components/espressif__cmake_utilities
+# Install script for directory: D:/esp/project/project1.3-git/managed_components/espressif__cmake_utilities
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

@@ -1,4 +1,4 @@
-# Install script for directory: D:/esp/project/project1.3/managed_components/lvgl__lvgl
+# Install script for directory: D:/esp/project/project1.3-git/managed_components/lvgl__lvgl
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

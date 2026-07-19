@@ -1,2 +1,2 @@
-source D:/esp/project/project1.3/build/bootloader/gdbinit/symbols
-source D:/esp/project/project1.3/build/bootloader/gdbinit/connect
+source D:/esp/project/project1.3-git/build/bootloader/gdbinit/symbols
+source D:/esp/project/project1.3-git/build/bootloader/gdbinit/connect

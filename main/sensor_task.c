@@ -4,7 +4,7 @@
  * —— 适配 ESP-IDF v5.5.4 新版 I2C 驱动 (i2c_master.h)
  *
  * 关于新驱动API的说明：
- *   旧版: i2c_param_config() + i2c_driver_install() + i2c_master_write_to_device()
+ *
  *   新版: i2c_new_master_bus() 创建总线 + i2c_master_bus_add_device() 给每个器件建立"设备句柄"
  *         之后每个器件用自己的句柄读写，不用每次都传地址，更不容易出错。
  *
@@ -41,13 +41,6 @@ static const char *TAG = "SENSOR_TASK";
 #define SHT30_ADDR                0x44
 #define SHT30_CMD_MEASURE_HIGH_H  0x24
 #define SHT30_CMD_MEASURE_HIGH_L  0x00
-
-// ---------- 简单低通滤波(一阶IIR/指数移动平均) ----------
-// 客户要求做信号预处理抑制干扰噪声，小波降噪/卡尔曼滤波对单片机开销太大不现实，
-// 这里用一阶低通滤波作为轻量级替代方案：filtered = ALPHA*raw + (1-ALPHA)*filtered_上一次
-// ALPHA越小滤波越强(越平滑但反应越慢)，越接近1滤波越弱(跟得快但抖动大)。
-// 0.3是经验值：104Hz采样率下大约能平滑掉几毫秒级的高频毛刺，同时不明显拖慢电梯启停的响应速度。
-#define ACCEL_FILTER_ALPHA  0.3f
 
 // ---------- 设备句柄（新API核心：每个I2C器件对应一个句柄） ----------
 static i2c_master_bus_handle_t s_bus_handle = NULL;
@@ -124,6 +117,41 @@ static esp_err_t lsm6ds3_init(void)
     return lsm6ds3_write_reg(LSM6DS3_CTRL1_XL, 0x40);
 }
 
+// ================= IIR 低通滤波器（一阶指数移动平均） =================
+#define IIR_ALPHA  0.4f  // 滤波系数：0~1，越小滤波效果越强但延迟越大
+
+typedef struct {
+    float filtered_x, filtered_y, filtered_z;
+    bool initialized;
+} iir_filter_t;
+
+static iir_filter_t s_iir_filter = {0.0f, 0.0f, 0.0f, false};
+
+static void iir_filter_update(float raw_x, float raw_y, float raw_z,
+                              float *out_x, float *out_y, float *out_z)
+{
+    if (!s_iir_filter.initialized) {
+        s_iir_filter.filtered_x = raw_x;
+        s_iir_filter.filtered_y = raw_y;
+        s_iir_filter.filtered_z = raw_z;
+        s_iir_filter.initialized = true;
+    } else {
+        s_iir_filter.filtered_x = IIR_ALPHA * raw_x + (1.0f - IIR_ALPHA) * s_iir_filter.filtered_x;
+        s_iir_filter.filtered_y = IIR_ALPHA * raw_y + (1.0f - IIR_ALPHA) * s_iir_filter.filtered_y;
+        s_iir_filter.filtered_z = IIR_ALPHA * raw_z + (1.0f - IIR_ALPHA) * s_iir_filter.filtered_z;
+    }
+    
+    *out_x = s_iir_filter.filtered_x;
+    *out_y = s_iir_filter.filtered_y;
+    *out_z = s_iir_filter.filtered_z;
+}
+
+// ================= 3轴合成加速度计算 =================
+static float compute_resultant_accel(float ax, float ay, float az)
+{
+    return sqrtf(ax * ax + ay * ay + az * az);
+}
+
 static esp_err_t lsm6ds3_read_accel(float *ax, float *ay, float *az)
 {
     uint8_t raw[6];
@@ -134,9 +162,13 @@ static esp_err_t lsm6ds3_read_accel(float *ax, float *ay, float *az)
     int16_t raw_y = (int16_t)((raw[3] << 8) | raw[2]);
     int16_t raw_z = (int16_t)((raw[5] << 8) | raw[4]);
 
-    *ax = raw_x * ACCEL_SENSITIVITY_2G;
-    *ay = raw_y * ACCEL_SENSITIVITY_2G;
-    *az = raw_z * ACCEL_SENSITIVITY_2G;
+    float raw_ax = raw_x * ACCEL_SENSITIVITY_2G;
+    float raw_ay = raw_y * ACCEL_SENSITIVITY_2G;
+    float raw_az = raw_z * ACCEL_SENSITIVITY_2G;
+    
+    // 应用IIR低通滤波
+    iir_filter_update(raw_ax, raw_ay, raw_az, ax, ay, az);
+    
     return ESP_OK;
 }
 
@@ -180,53 +212,14 @@ void sensor_task(void *pvParameters)
     int sht30_counter = 0;
     float last_temp = 25.0f, last_humi = 50.0f;
 
-    // 低通滤波状态变量：跨循环持续保存上一次的滤波结果
-    float filt_ax = 0.0f, filt_ay = 0.0f, filt_az = 9.8f;
-    bool filter_initialized = false;
-
     while (1) {
-        // 非阻塞检查一次按键事件，优先处理（不影响下面的传感器采样节奏）
-        button_event_t btn_evt;
-        if (xQueueReceive(g_button_event_queue, &btn_evt, 0) == pdTRUE) {
-            if (btn_evt == BTN_EVT_TOGGLE_START_STOP) {
-                // 手动切换：如果当前是IDLE就强制切到RUNNING，反之亦然
-                elevator_state_t current = es_get_state(&sm);
-                elevator_state_t new_state = (current == ES_STATE_IDLE) ? ES_STATE_RUNNING : ES_STATE_IDLE;
-                es_force_state(&sm, new_state);
-
-                // 手动切换也要像自动检测一样，往状态事件队列发通知，
-                // 这样score_task/display_task不需要关心这次切换是自动检测的还是手动按键触发的
-                elevator_event_t evt = (new_state == ES_STATE_RUNNING) ? EVT_ELEVATOR_START : EVT_ELEVATOR_STOP;
-                xQueueSend(g_state_event_queue, &evt, 0);
-                ESP_LOGW(TAG, "手动切换状态: %s", new_state == ES_STATE_RUNNING ? "开始运行" : "运行结束");
-
-            } else if (btn_evt == BTN_EVT_RECALIBRATE) {
-                // 重新标定只在静止状态下才有意义，运行中按了直接忽略，避免用运动中的数据当基准
-                if (es_get_state(&sm) == ES_STATE_IDLE) {
-                    es_reset_calibration(&sm);
-                    ESP_LOGW(TAG, "已触发重新标定，请保持设备静止等待标定完成");
-                } else {
-                    ESP_LOGW(TAG, "运行中无法重新标定，请先停止检测");
-                }
-            }
-        }
-
         float ax, ay, az;
         if (lsm6ds3_read_accel(&ax, &ay, &az) == ESP_OK) {
 
-            // 一阶低通滤波：第一次直接采用原始值，避免滤波器从0开始有一段"爬升期"
-            if (!filter_initialized) {
-                filt_ax = ax; filt_ay = ay; filt_az = az;
-                filter_initialized = true;
-            } else {
-                filt_ax = ACCEL_FILTER_ALPHA * ax + (1.0f - ACCEL_FILTER_ALPHA) * filt_ax;
-                filt_ay = ACCEL_FILTER_ALPHA * ay + (1.0f - ACCEL_FILTER_ALPHA) * filt_ay;
-                filt_az = ACCEL_FILTER_ALPHA * az + (1.0f - ACCEL_FILTER_ALPHA) * filt_az;
-            }
-            // 后续状态机判断、共享数据都使用滤波后的值，而不是原始值
-            ax = filt_ax; ay = filt_ay; az = filt_az;
-
             bool changed = es_update(&sm, ax, ay, az);
+
+            // 计算3轴合成加速度（用于冲击强度评估）
+            float accel_magnitude = compute_resultant_accel(ax, ay, az);
 
             // 每20个周期（约200ms）读一次温湿度
             if (++sht30_counter >= 20) {
@@ -240,7 +233,7 @@ void sensor_task(void *pvParameters)
                 }
             }
 
-            shared_data_write_imu(ax, ay, az, last_temp, last_humi, es_get_state(&sm));
+            shared_data_write_imu(ax, ay, az, accel_magnitude, last_temp, last_humi, es_get_state(&sm));
 
             if (changed) {
                 elevator_event_t evt = (es_get_state(&sm) == ES_STATE_RUNNING)

@@ -47,10 +47,10 @@ void score_task(void *pvParameters)
     elevator_event_t evt;
 
     bool collecting = false;
-    float local_baseline_az = 0.0f;
+    float local_baseline_accel = 0.0f;  // 改为通用的baseline
     float max_amplitude = 0.0f;
     float max_jerk = 0.0f;
-    float prev_az = 0.0f;
+    float prev_accel = 0.0f;  // 改用 prev_accel
     bool has_prev = false;
 
     // 冲击持续时间统计相关状态
@@ -80,7 +80,7 @@ void score_task(void *pvParameters)
                 temp_sum = 0.0f; humi_sum = 0.0f; env_count = 0;
 
                 sensor_data_t d = shared_data_read();
-                local_baseline_az = d.accel_z; // 用运行开始那一刻的值作为本次的参照基准
+                local_baseline_accel = d.accel_magnitude;  // 用运行开始那一刻的合成加速度作为基准
                 ESP_LOGI(TAG, "开始记录本次运行数据");
 
             } else { // EVT_ELEVATOR_STOP
@@ -133,31 +133,29 @@ void score_task(void *pvParameters)
         if (collecting) {
             sensor_data_t d = shared_data_read();
 
-            float amplitude = fabsf(d.accel_z - local_baseline_az);
+            // 使用3轴合成加速度而不是单纯的Z轴，更准确地反映冲击强度
+            float amplitude = fabsf(d.accel_magnitude - local_baseline_accel);
             if (amplitude > max_amplitude) {
                 max_amplitude = amplitude;
             }
 
             if (has_prev) {
-                float jerk = fabsf(d.accel_z - prev_az);
+                float jerk = fabsf(d.accel_magnitude - prev_accel);
                 if (jerk > max_jerk) {
                     max_jerk = jerk;
                 }
             }
-            prev_az = d.accel_z;
+            prev_accel = d.accel_magnitude;
             has_prev = true;
 
             // ---- 冲击持续时间统计 ----
             if (amplitude > SHOCK_THRESHOLD) {
                 if (!in_shock) {
-                    // 刚开始进入冲击状态，记录起始时刻
                     in_shock = true;
                     shock_start_tick = xTaskGetTickCount();
                 }
-                // 如果已经在冲击状态里，这里不用做什么，等结束时统一结算时长
             } else {
                 if (in_shock) {
-                    // 冲击状态刚结束，结算这一段的持续时长
                     float duration_ms = (float)((xTaskGetTickCount() - shock_start_tick) * portTICK_PERIOD_MS);
                     if (duration_ms > max_shock_duration_ms) {
                         max_shock_duration_ms = duration_ms;
